@@ -53,9 +53,55 @@
   function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ok */ } }
   function loadSave() {
     try {
-      var s = JSON.parse(localStorage.getItem(SAVE_KEY));
-      return s && s.v === 1 && s.winner == null ? s : null;
+      return sanitizeSave(JSON.parse(localStorage.getItem(SAVE_KEY)));
     } catch (e) { return null; }
+  }
+
+  /* O salvamento vem do localStorage e pode ter sido editado à mão: reconstrói o estado
+   * só com campos conhecidos e valores válidos (avatar e cor entram em HTML/CSS sem escape).
+   * Retorna null se algo essencial não bater. */
+  function sanitizeSave(s) {
+    if (!s || s.v !== 1 || s.winner != null || !Array.isArray(s.players)) return null;
+    if (s.players.length < 2 || s.players.length > 4) return null;
+    function int(v, min, max) {
+      if (typeof v !== "number" || !isFinite(v)) throw new Error("número inválido");
+      return Math.max(min, Math.min(max, Math.round(v)));
+    }
+    var HEX = /^#[0-9a-f]{6}$/i;
+    try {
+      var players = s.players.map(function (p, i) {
+        if (!p || AVATARS.indexOf(p.avatar) < 0 || !HEX.test(p.color) || typeof p.name !== "string") throw new Error("jogador inválido");
+        var items = p.items || {}, stats = p.stats || {};
+        return {
+          id: i, name: p.name.trim().slice(0, 16) || "Jogador " + (i + 1), color: p.color, avatar: p.avatar,
+          pos: int(p.pos, 0, E.LAST), points: int(p.points, 0, 1e6), skip: int(p.skip, 0, 5),
+          items: { bussola: int(items.bussola, 0, E.MAX_ITEM), escudo: int(items.escudo, 0, E.MAX_ITEM), turbo: int(items.turbo, 0, E.MAX_ITEM) },
+          stats: { acertos: int(stats.acertos, 0, 1e4), erros: int(stats.erros, 0, 1e4) }
+        };
+      });
+      var used = {};
+      ["quiz", "enigma", "ordenar", "vf", "flag", "sorte", "reves"].forEach(function (k) {
+        var arr = s.used && s.used[k];
+        used[k] = Array.isArray(arr) ? arr.filter(function (n) { return Number.isInteger(n) && n >= 0 && n < 1000; }) : [];
+      });
+      var logs = Array.isArray(s.log) ? s.log.slice(0, 40).filter(function (e) {
+        return e && typeof e.t === "string" && typeof e.n === "string" && HEX.test(e.c) && (e.a === "🌎" || AVATARS.indexOf(e.a) >= 0);
+      }).map(function (e) { return { a: e.a, c: e.c, n: e.n.slice(0, 16), t: e.t.slice(0, 200) }; }) : [];
+      var settings = s.settings || {};
+      return {
+        v: 1, players: players,
+        current: int(s.current, 0, players.length - 1), round: int(s.round, 1, 1e4),
+        settings: {
+          time: [0, 20, 30, 45].indexOf(settings.time) >= 0 ? settings.time : 30,
+          level: ["misto", "facil", "dificil"].indexOf(settings.level) >= 0 ? settings.level : "misto"
+        },
+        used: used, extraTurn: s.extraTurn === true, winner: null,
+        lastActivity: ["ordenar", "vf", "bandeira"].indexOf(s.lastActivity) >= 0 ? s.lastActivity : null,
+        log: logs
+      };
+    } catch (e) {
+      return null;
+    }
   }
 
   // ---------- tela inicial ----------
@@ -1099,6 +1145,7 @@
   window.__geo = {
     get state() { return state; },
     setRandom: function (fn) { rnd = fn; },
+    sanitizeSave: sanitizeSave,
     board: BOARD
   };
 

@@ -96,7 +96,30 @@
     w.addEventListener("error", function (e) { errors.push(e.message); });
     var origErr = w.console.error;
     w.console.error = function () { errors.push([].join.call(arguments, " ")); origErr.apply(w.console, arguments); };
+    d.addEventListener("securitypolicyviolation", function (e) { errors.push("CSP bloqueou " + e.blockedURI + " (" + e.violatedDirective + ")"); });
     try { w.localStorage.clear(); } catch (e) { /* ok */ }
+
+    // ---------- salvamento adulterado ----------
+    var S = w.__geo.sanitizeSave;
+    function base() {
+      return { v: 1, current: 1, round: 3, settings: { time: 30, level: "misto" }, used: { quiz: [1, 2] }, extraTurn: false, winner: null, lastActivity: "vf",
+        log: [{ a: "✈️", c: "#e5484d", n: "Ana", t: "rolou 4" }],
+        players: [0, 1].map(function (i) { return { name: "P" + i, color: "#e5484d", avatar: "✈️", pos: 10, points: 100, skip: 0, items: { bussola: 1, escudo: 0, turbo: 2 }, stats: { acertos: 1, erros: 2 } }; }) };
+    }
+    var good = S(base());
+    ok(good && good.players.length === 2 && good.current === 1 && good.log.length === 1, "salvamento válido é aceito");
+    var bad = base(); bad.players[0].avatar = '<img src=x onerror=alert(1)>';
+    ok(S(bad) === null, "avatar com HTML é rejeitado");
+    bad = base(); bad.players[0].color = 'red;background:url(//evil)';
+    ok(S(bad) === null, "cor com CSS injetado é rejeitada");
+    bad = base(); bad.players[1].pos = "10";
+    ok(S(bad) === null, "posição não numérica é rejeitada");
+    bad = base(); bad.log.push({ a: "<b>", c: "#000000", n: "x", t: "y" });
+    ok(S(bad).log.length === 1, "entrada de diário adulterada é descartada");
+    bad = base(); bad.players[0].pos = 999; bad.players[0].items.turbo = 50; bad.current = 9; bad.settings.time = 5; bad.hack = true;
+    var fixed = S(bad);
+    ok(fixed.players[0].pos === 49 && fixed.players[0].items.turbo === 3 && fixed.current === 1 && fixed.settings.time === 30 && !("hack" in fixed), "valores fora do limite são corrigidos");
+    ok(S(null) === null && S({ v: 2 }) === null && S(Object.assign(base(), { players: [] })) === null, "lixo é rejeitado");
     w.Sfx.setEnabled(false);
     var arnd = seeded(7);
     var steps = 0, kinds = {};
@@ -123,6 +146,12 @@
         return;
       }
       if (steps > 40000) { clearInterval(timer); ok(false, "partida não terminou (casa do líder: " + Math.max.apply(null, gs.players.map(function (p) { return p.pos; })) + ")"); done(); return; }
+      if (steps === 300) {
+        var real = JSON.parse(w.localStorage.getItem("geoaventura:partida:v1"));
+        var clean = S(real);
+        ok(clean && clean.players.length === 4 && clean.round === real.round && clean.used.quiz.length === real.used.quiz.length,
+          "salvamento real do meio da partida é aceito pela validação");
+      }
       var modal = q(".modal");
       if (modal) {
         var badge = q(".m-badge");
