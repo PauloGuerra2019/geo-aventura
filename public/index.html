@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GeoAventura — Volta ao Mundo</title>
+  <meta name="description" content="Jogo de tabuleiro de Geografia para 2 a 4 jogadores: perguntas, enigmas, atividades e muitos bônus e ônus numa volta ao mundo.">
+  <meta name="theme-color" content="#0b2a4a">
+  <meta property="og:title" content="GeoAventura — Volta ao Mundo">
+  <meta property="og:description" content="Jogo de tabuleiro de Geografia para 2 a 4 jogadores.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌎</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ===== Tela inicial ===== -->
+  <section id="screen-setup" class="screen active" aria-labelledby="titulo">
+    <div class="setup-hero">
+      <div class="globe" aria-hidden="true"><span>🌎</span></div>
+      <h1 id="titulo" class="logo">Geo<span>Aventura</span></h1>
+      <p class="tagline">Uma volta ao mundo em 49 casas — de Brasília aos Polos, respondendo perguntas, decifrando enigmas e encarando desafios.</p>
+    </div>
+
+    <div class="setup-card">
+      <div class="setup-row">
+        <h2>Quantos viajantes?</h2>
+        <div class="segmented" id="count-picker" role="radiogroup" aria-label="Número de jogadores">
+          <button type="button" role="radio" data-n="2">2</button>
+          <button type="button" role="radio" data-n="3">3</button>
+          <button type="button" role="radio" data-n="4">4</button>
+        </div>
+      </div>
+
+      <div id="player-forms" class="player-forms"></div>
+
+      <div class="settings">
+        <label>⏱️ Tempo por pergunta
+          <select id="opt-time">
+            <option value="20">20 segundos</option>
+            <option value="30" selected>30 segundos</option>
+            <option value="45">45 segundos</option>
+            <option value="0">Sem limite</option>
+          </select>
+        </label>
+        <label>🎓 Nível das perguntas
+          <select id="opt-level">
+            <option value="misto" selected>Misto (recomendado)</option>
+            <option value="facil">Fácil (escola fundamental)</option>
+            <option value="dificil">Desafiador</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="setup-actions">
+        <button type="button" class="btn btn-ghost" id="btn-rules-setup">📖 Como jogar</button>
+        <button type="button" class="btn btn-secondary" id="btn-resume" hidden>↩️ Continuar partida</button>
+        <button type="button" class="btn btn-primary btn-big" id="btn-start">Embarcar! ✈️</button>
+      </div>
+    </div>
+    <p class="foot-note">Jogo local: passem o dispositivo (ou usem uma TV) e joguem juntos.</p>
+  </section>
+
+  <!-- ===== Jogo ===== -->
+  <section id="screen-game" class="screen" aria-label="Partida">
+    <header class="topbar">
+      <div class="logo small">Geo<span>Aventura</span></div>
+      <div class="round-chip" id="round-chip">Rodada 1</div>
+      <div class="top-actions">
+        <button type="button" class="icon-btn" id="btn-rules" title="Como jogar" aria-label="Como jogar">📖</button>
+        <button type="button" class="icon-btn" id="btn-sound" title="Som" aria-label="Ligar ou desligar som">🔊</button>
+        <button type="button" class="icon-btn" id="btn-quit" title="Nova partida" aria-label="Voltar ao início">🏠</button>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <div class="board-area">
+        <div id="board" class="board" aria-label="Tabuleiro"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <aside class="side">
+        <div id="turn-panel" class="turn-panel"></div>
+        <div id="players" class="players"></div>
+        <div class="log-card">
+          <h3>📔 Diário de bordo</h3>
+          <ol id="log" aria-live="polite"></ol>
+        </div>
+      </aside>
+    </main>
+  </section>
+
+  <!-- ===== Fim de jogo ===== -->
+  <section id="screen-end" class="screen" aria-labelledby="end-title">
+    <div class="end-card">
+      <div class="trophy" aria-hidden="true">🏆</div>
+      <h1 id="end-title"></h1>
+      <p id="end-sub" class="end-sub"></p>
+      <div id="podium" class="podium"></div>
+      <div id="end-stats" class="end-stats"></div>
+      <div class="setup-actions center">
+        <button type="button" class="btn btn-secondary" id="btn-new">🏠 Nova partida</button>
+        <button type="button" class="btn btn-primary btn-big" id="btn-rematch">🔁 Revanche</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="assertive"></div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Blueprint do Render: site estático, sem build.
+services:
+  - type: web
+    name: geo-aventura
+    runtime: static
+    buildCommand: echo "Site estatico - sem build"
+    staticPublishPath: ./public
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /js/*
+        name: Cache-Control
+        value: public, max-age=3600

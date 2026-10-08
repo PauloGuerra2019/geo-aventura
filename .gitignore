@@ -1,0 +1,5 @@
+.vercel/
+.DS_Store
+Thumbs.db
+__pycache__/
+tests/_shot*.html

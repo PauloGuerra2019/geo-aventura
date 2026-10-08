@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>GeoAventura — testes</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 20px; }
+  .ok { color: #157a3c; } .fail { color: #b42318; font-weight: bold; }
+  iframe { width: 1280px; height: 800px; border: 1px solid #ccc; margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>GeoAventura — testes</h1>
+<p>Sirva a raiz do projeto (<code>python -m http.server 8123</code>) e abra <code>/tests/testes.html</code>.</p>
+<pre id="out"></pre>
+<iframe id="game" src="../public/index.html"></iframe>
+<script src="../public/js/data.js"></script>
+<script src="../public/js/engine.js"></script>
+<script>
+(function () {
+  var out = document.getElementById("out");
+  var fails = 0, passes = 0;
+  function line(t, cls) { var s = document.createElement("span"); s.className = cls || ""; s.textContent = t + "\n"; out.appendChild(s); }
+  function ok(cond, msg) { if (cond) { passes++; } else { fails++; line("FALHA: " + msg, "fail"); } }
+  function seeded(seed) { return function () { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; }
+
+  var E = window.GeoEngine, D = window.GEO_DATA;
+
+  // ---------- testes unitários do motor ----------
+  var board = E.buildBoard();
+  ok(board.length === 50, "tabuleiro com 50 casas");
+  ok(board[0].type === "inicio" && board[49].type === "final", "início e fim");
+  board.forEach(function (s) {
+    if (s.to != null) {
+      ok(s.type === "atalho" ? s.to > s.i : s.to < s.i, "direção da seta da casa " + s.i);
+      ok(board[s.to].type !== "atalho" && board[s.to].type !== "perigo", "seta da casa " + s.i + " não cai em outra seta");
+    }
+  });
+  ok(E.clampPos(-3) === 0 && E.clampPos(60) === 49, "clampPos");
+
+  var rnd = seeded(42);
+  var counts = {};
+  for (var i = 0; i < 6000; i++) { var r = E.rollDie(rnd); counts[r] = (counts[r] || 0) + 1; }
+  ok(Object.keys(counts).length === 6 && Object.keys(counts).every(function (k) { return counts[k] > 800; }), "dado justo 1..6");
+
+  var st = E.createGame([{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }], { time: 30, level: "misto" });
+  ok(st.players[0].items.bussola === 1, "começa com 1 bússola");
+  var seen = {};
+  for (i = 0; i < D.quiz.length; i++) seen[E.pickQuiz(st, D, "br", rnd).q] = 1;
+  ok(Object.keys(seen).length === D.quiz.length, "quiz não repete até esgotar o baralho");
+  var brHits = 0;
+  st.used = {};
+  for (i = 0; i < 20; i++) if (E.pickQuiz(st, D, "br", rnd).r === "br") brHits++;
+  ok(brHits >= 8, "maioria das perguntas na casa do Brasil é do Brasil (" + brHits + "/20)");
+  st.settings.level = "facil"; st.used = {};
+  for (i = 0; i < 40; i++) ok(E.pickQuiz(st, D, "eu", rnd).d <= 2, "nível fácil só traz d<=2");
+  st.settings.level = "dificil"; st.used = {};
+  for (i = 0; i < 40; i++) ok(E.pickQuiz(st, D, "as", rnd).d >= 2, "nível desafiador só traz d>=2");
+  st.used = {};
+  ok(E.pickQuiz(st, D, null, rnd, { minD: 3 }).d === 3, "desafio final é difícil");
+
+  var p = st.players[0];
+  p.points = 50;
+  E.applyEffect(st, p, { pts: -100 }, rnd);
+  ok(p.points === 0, "pontos não ficam negativos");
+  p.items.turbo = 3;
+  var fx = E.applyEffect(st, p, { item: "turbo" }, rnd);
+  ok(p.items.turbo === 3 && p.points === 50 && fx.notes.length === 1, "mochila cheia vira +50");
+  p.items = { bussola: 0, escudo: 0, turbo: 0 }; p.points = 80;
+  E.applyEffect(st, p, { loseItem: true }, rnd);
+  ok(p.points === 30, "perder item sem itens custa 50 pontos");
+  ok(!E.useShield(p), "sem escudo não bloqueia");
+  p.items.escudo = 1;
+  ok(E.useShield(p) && p.items.escudo === 0, "escudo bloqueia e é consumido");
+  st.players.forEach(function (o) { o.points = 30; });
+  p.points = 0;
+  E.applyEffect(st, p, { collect: 50 }, rnd);
+  ok(p.points === 90 && st.players[1].points === 0, "cartão-postal recolhe o que cada um tem");
+  E.applyEffect(st, p, { extra: true }, rnd);
+  st.current = 0;
+  ok(E.nextTurn(st) === 0 && !st.extraTurn, "jogada extra mantém o jogador");
+  ok(E.nextTurn(st) === 1, "turno avança");
+  st.current = 3; var round = st.round;
+  E.nextTurn(st);
+  ok(st.current === 0 && st.round === round + 1, "rodada incrementa");
+  st.winner = 2;
+  ok(E.ranking(st)[0].id === 2, "vencedor lidera o ranking");
+
+  line("Unitários: " + passes + " ok, " + fails + " falhas", fails ? "fail" : "ok");
+
+  // ---------- partida completa automatizada (clica na interface real) ----------
+  var frame = document.getElementById("game");
+  frame.addEventListener("load", function () {
+    var w = frame.contentWindow, d = frame.contentDocument;
+    var errors = [];
+    w.addEventListener("error", function (e) { errors.push(e.message); });
+    var origErr = w.console.error;
+    w.console.error = function () { errors.push([].join.call(arguments, " ")); origErr.apply(w.console, arguments); };
+    try { w.localStorage.clear(); } catch (e) { /* ok */ }
+    w.Sfx.setEnabled(false);
+    var arnd = seeded(7);
+    var steps = 0, kinds = {};
+    function q(s) { return d.querySelector(s); }
+    function qa(s) { return [].slice.call(d.querySelectorAll(s)); }
+    function click(el) { if (el) { el.click(); return true; } return false; }
+
+    click(q('#count-picker button[data-n="4"]'));
+    q("#opt-time").value = "20";
+    click(q("#btn-start"));
+
+    var timer = setInterval(function () {
+      steps++;
+      var gs = w.__geo.state;
+      if (q("#screen-end.active")) {
+        clearInterval(timer);
+        var winner = gs.players[gs.winner];
+        ok(winner && winner.pos === 49, "vencedor está na casa 49");
+        ok(errors.length === 0, "sem erros de JavaScript: " + errors.join(" | "));
+        ok(qa("#podium .pod").length === 3, "pódio com 3 lugares");
+        ok(qa("#end-stats tbody tr").length === 4, "tabela final com 4 jogadores");
+        line("Partida automatizada: vencedor " + winner.name + " na rodada " + gs.round + " · desafios vistos: " + JSON.stringify(kinds), "ok");
+        done();
+        return;
+      }
+      if (steps > 40000) { clearInterval(timer); ok(false, "partida não terminou (casa do líder: " + Math.max.apply(null, gs.players.map(function (p) { return p.pos; })) + ")"); done(); return; }
+      var modal = q(".modal");
+      if (modal) {
+        var badge = q(".m-badge");
+        if (badge && !modal.dataset.visto) {
+          modal.dataset.visto = "1";
+          var k = badge.textContent.trim();
+          kinds[k] = (kinds[k] || 0) + 1;
+        }
+        if (click(q("[data-continue]"))) return;
+        var duel = qa(".duel-btn"); if (duel.length) return click(duel[Math.floor(arnd() * duel.length)]);
+        var opts = qa(".opt:not(:disabled)"); if (opts.length) return click(opts[Math.floor(arnd() * opts.length)]);
+        var vf = qa(".vf-btn"); if (vf.length && !q(".vf-feedback.ok, .vf-feedback.bad")) return click(vf[Math.floor(arnd() * 2)]);
+        var chips = qa(".chip-btn:not(:disabled)"); if (chips.length) return click(chips[0]);
+        var conf = q(".m-foot .btn-primary:not(:disabled)"); if (conf) return click(conf);
+        return;
+      }
+      var roll = q("#btn-roll:not(:disabled)");
+      if (roll) {
+        if (arnd() < 0.3) click(q("#btn-turbo:not(:disabled)"));
+        click(roll);
+      }
+    }, 60);
+  });
+
+  function done() {
+    line("TOTAL: " + passes + " ok, " + fails + " falhas", fails ? "fail" : "ok");
+    document.title = fails ? "RESULT:FAIL" : "RESULT:PASS";
+    document.body.setAttribute("data-result", fails ? "fail" : "pass");
+  }
+})();
+</script>
+</body>
+</html>
